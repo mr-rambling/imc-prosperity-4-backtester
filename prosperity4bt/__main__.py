@@ -12,7 +12,7 @@ from typer import Argument, Option, Typer
 
 from prosperity4bt.data import has_day_data
 from prosperity4bt.file_reader import FileReader, FileSystemReader, PackageResourcesReader
-from prosperity4bt.models import BacktestResult, TradeMatchingMode
+from prosperity4bt.models import BacktestResult, TradeMatchingMode, SandboxLogRow, ActivityLogRow
 from prosperity4bt.open import open_visualizer
 from prosperity4bt.runner import run_backtest
 
@@ -101,6 +101,8 @@ def print_day_summary(result: BacktestResult, print_results) -> None:
 def merge_results(
     a: BacktestResult, b: BacktestResult, merge_profit_loss: bool, merge_timestamps: bool
 ) -> BacktestResult:
+    sandbox_logs: list[SandboxLogRow]
+    activity_logs: list[ActivityLogRow]
     sandbox_logs = a.sandbox_logs[:]
     activity_logs = a.activity_logs[:]
     trades = a.trades[:]
@@ -128,7 +130,7 @@ def merge_results(
     else:
         activity_logs.extend([row.with_offset(timestamp_offset, 0) for row in b.activity_logs])
 
-    return BacktestResult(a.round_num, a.day_num, sandbox_logs, activity_logs, trades)
+    return BacktestResult(a.round_num, a.day_num, activity_logs, sandbox_logs, trades)
 
 
 def write_output(output_file: Path, merged_results: BacktestResult) -> None:
@@ -147,20 +149,20 @@ def write_output(output_file: Path, merged_results: BacktestResult) -> None:
 
         file.write("\n\n\"activitiesLog\":\n")
         file.write(
-            "\"day;timestamp;product;bid_price_1;bid_volume_1;bid_price_2;bid_volume_2;bid_price_3;bid_volume_3;ask_price_1;ask_volume_1;ask_price_2;ask_volume_2;ask_price_3;ask_volume_3;mid_price;profit_and_loss\\n"
+            "\"day;timestamp;product;bid_price_1;bid_volume_1;bid_price_2;bid_volume_2;bid_price_3;bid_volume_3;ask_price_1;ask_volume_1;ask_price_2;ask_volume_2;ask_price_3;ask_volume_3;mid_price;profit_and_loss\n"
         )
+        for row in merged_results.activity_logs:
+            file.write("\n")
+            file.write(str(row))
+        # file.write("\n".join(map(str, merged_results.activity_logs)))
+        # file.write("\",\n\n")
+
+
+        file.write("\"logs\":[\n")
         for row in merged_results.sandbox_logs:
             file.write(str(row))
             file.write("\\n")
         file.write("\",\n\n")
-
-        file.write("\"logs\":[\n")
-        file.write(str(merged_results.activity_logs[0]))
-        for row in merged_results.activity_logs:
-            file.write(",\n")
-            file.write(str(row))
-        # file.write("\n".join(map(str, merged_results.activity_logs)))
-        # file.write("\",\n\n")
 
         file.write("],\n\n\n\"tradeHistory\":\n")
         file.write("[\n")
